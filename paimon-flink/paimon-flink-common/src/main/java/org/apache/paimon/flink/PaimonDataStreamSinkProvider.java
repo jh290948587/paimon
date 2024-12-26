@@ -30,7 +30,7 @@ import java.util.function.Function;
 public class PaimonDataStreamSinkProvider implements DataStreamSinkProvider {
 
     private final Function<DataStream<RowData>, DataStreamSink<?>> producer;
-
+    // 先给SinkProvider传入一个函数，之后flink调用consumeDataStream方法时，直接调用函数即可
     public PaimonDataStreamSinkProvider(Function<DataStream<RowData>, DataStreamSink<?>> producer) {
         this.producer = producer;
     }

@@ -48,6 +48,8 @@ import static org.apache.paimon.CoreOptions.MERGE_ENGINE;
 import static org.apache.paimon.flink.FlinkConnectorOptions.SINK_PARALLELISM;
 
 /** Table sink to create sink. */
+// 实现flink connector的都需要实现flink接口如DynamicTableSink和DynamicTableSource等，作为flink调用这些接口时的实现类
+// 当前类相当于连接器的入口类
 public abstract class FlinkTableSinkBase
         implements DynamicTableSink, SupportsOverwrite, SupportsPartitioning {
 
@@ -116,6 +118,7 @@ public abstract class FlinkTableSinkBase
 
         LogSinkProvider logSinkProvider = null;
         if (logStoreTableFactory != null) {
+            // 写数据到文件的同时讲数据也写入到queue中，目前只支持kafka
             logSinkProvider = logStoreTableFactory.createSinkProvider(this.context, context);
         }
 
