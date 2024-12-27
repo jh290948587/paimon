@@ -121,12 +121,15 @@ public abstract class FlinkTableSinkBase
             // 写数据到文件的同时讲数据也写入到queue中，目前只支持kafka
             logSinkProvider = logStoreTableFactory.createSinkProvider(this.context, context);
         }
-
+        /**
+         * table是 {@link org.apache.paimon.table.FileStoreTableFactory} 的create方法创建的，其中会区分PK表和Append表
+         */
         Options conf = Options.fromMap(table.options());
         // Do not sink to log store when overwrite mode
         final LogSinkFunction logSinkFunction =
                 overwrite ? null : (logSinkProvider == null ? null : logSinkProvider.createSink());
         return new PaimonDataStreamSinkProvider(
+                // flink上层调用传过来的dataStream
                 (dataStream) -> {
                     LogFlinkSinkBuilder builder = new LogFlinkSinkBuilder(table);
                     builder.logSinkFunction(logSinkFunction)
@@ -138,6 +141,7 @@ public abstract class FlinkTableSinkBase
                     if (overwrite) {
                         builder.overwrite(staticPartitions);
                     }
+                    // TODO kai后续再来看这段代码
                     conf.getOptional(SINK_PARALLELISM).ifPresent(builder::parallelism);
                     return builder.build();
                 });

@@ -52,6 +52,7 @@ public class FixedBucketRowKeyExtractor extends RowKeyExtractor {
     }
 
     private BinaryRow bucketKey() {
+        // 判断pk和bucket key是否一样
         if (sameBucketKeyAndTrimmedPrimaryKey) {
             return trimmedPrimaryKey();
         }
@@ -68,6 +69,7 @@ public class FixedBucketRowKeyExtractor extends RowKeyExtractor {
         if (reuseBucket == null) {
             reuseBucket =
                     KeyAndBucketExtractor.bucket(
+                            // nurnurhash对pk算hash值，再跟numBuckets取余
                             KeyAndBucketExtractor.bucketKeyHashCode(bucketKey), numBuckets);
         }
         return reuseBucket;

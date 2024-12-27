@@ -50,6 +50,10 @@ public class RowDataChannelComputer implements ChannelComputer<InternalRow> {
     @Override
     public int channel(InternalRow record) {
         extractor.setRecord(record);
+        /**
+         * 实际调用 {@link org.apache.paimon.table.sink.FixedBucketRowKeyExtractor} 的bucket方法
+         */
+        // 实际调用FixedBucketRowKeyExtractor
         return channel(extractor.partition(), extractor.bucket());
     }
 

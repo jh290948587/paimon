@@ -176,8 +176,10 @@ public abstract class FlinkSink<T> implements Serializable {
 
     public DataStreamSink<?> sinkFrom(DataStream<T> input, String initialCommitUser) {
         // do the actually writing action, no snapshot generated in this stage
+        // 写数据到文件，两阶段提交的第一阶段，不会生成快照
         DataStream<Committable> written = doWrite(input, initialCommitUser, input.getParallelism());
         // commit the committable to generate a new snapshot
+        // 会生成快照
         return doCommit(written, initialCommitUser);
     }
 

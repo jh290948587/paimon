@@ -70,6 +70,7 @@ public class FlinkStreamPartitioner<T> extends StreamPartitioner<T> {
     public static <T> DataStream<T> partition(
             DataStream<T> input, ChannelComputer<T> channelComputer, Integer parallelism) {
         FlinkStreamPartitioner<T> partitioner = new FlinkStreamPartitioner<>(channelComputer);
+        // paimon自定义分区实现
         PartitionTransformation<T> partitioned =
                 new PartitionTransformation<>(input.getTransformation(), partitioner);
         if (parallelism != null) {

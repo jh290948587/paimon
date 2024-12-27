@@ -135,6 +135,7 @@ public class FlinkSinkBuilder {
         BucketMode bucketMode = table.bucketMode();
         switch (bucketMode) {
             case FIXED:
+                // 本次读代码跟固定bucket数的逻辑
                 return buildForFixedBucket(input);
             case DYNAMIC:
                 return buildDynamicBucketSink(input, false);
