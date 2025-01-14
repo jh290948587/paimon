@@ -349,6 +349,9 @@ public class FlinkConnectorOptions {
 
     public static boolean prepareCommitWaitCompaction(Options options) {
         if (options.get(DELETION_VECTORS_ENABLED)) {
+            // DeletionVector 是维护在compaction线程中，但在预提交（写入线程）阶段，需要将 DeletionVector 读入文件以提交它
+            // 此时我们必须将 waitCompaction 设置为true，以确保没有多个线程同时操作 DeletionVector
+
             // DeletionVector (DV) is maintained in the compaction thread, but it needs to be
             // read into a file during prepareCommit (write thread) to commit it.
             // We must set waitCompaction to true so that there are no multiple threads
@@ -357,6 +360,8 @@ public class FlinkConnectorOptions {
         }
 
         ChangelogProducer changelogProducer = options.get(CoreOptions.CHANGELOG_PRODUCER);
+        // 没有开启 deletion vectors mode 的情况下，如果 changelogProducer 是 lookup 方式
+        // 且 changelog-producer.lookup-wait 为true，则将 waitCompaction 设置为true，否则设置为false，即不等待压缩完成
         return changelogProducer == ChangelogProducer.LOOKUP
                 && options.get(CHANGELOG_PRODUCER_LOOKUP_WAIT);
     }

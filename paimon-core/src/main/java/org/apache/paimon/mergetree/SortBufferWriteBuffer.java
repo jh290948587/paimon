@@ -155,9 +155,11 @@ public class SortBufferWriteBuffer implements WriteBuffer {
             throws IOException {
         // TODO do not use iterator
         MergeIterator mergeIterator =
+                // 堆内存中的数据进行 sort ，然后封装了个 Iterator
                 new MergeIterator(
                         rawConsumer, buffer.sortedIterator(), keyComparator, mergeFunction);
         while (mergeIterator.hasNext()) {
+            // 也就是调用传进来的 dataWriter.write()
             mergedConsumer.accept(mergeIterator.next());
         }
     }
@@ -213,6 +215,7 @@ public class SortBufferWriteBuffer implements WriteBuffer {
             return previousRow != null;
         }
 
+        // 读取一条数据，由多条相同 key merge 之后的数据
         public KeyValue next() throws IOException {
             advanceIfNeeded();
             if (previousRow == null) {
@@ -236,6 +239,7 @@ public class SortBufferWriteBuffer implements WriteBuffer {
                 mergeFunctionWrapper.reset();
                 mergeFunctionWrapper.add(previous.getReusedKv());
 
+                // 堆相同的 key 的数据做merge，结果给 result
                 while (readOnce()) {
                     if (keyComparator.compare(
                                     previous.getReusedKv().key(), current.getReusedKv().key())
@@ -249,8 +253,10 @@ public class SortBufferWriteBuffer implements WriteBuffer {
             } while (result == null);
         }
 
+        // 从内存中读取一条数据
         private boolean readOnce() throws IOException {
             try {
+                // 继续跟进 kvIter，看到 BinaryInMemorySortBuffer 实现了可排序接口，所以可以用快排
                 currentRow = kvIter.next(currentRow);
             } catch (IOException e) {
                 throw new RuntimeException(e);

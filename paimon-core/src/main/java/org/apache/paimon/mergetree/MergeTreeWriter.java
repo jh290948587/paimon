@@ -157,10 +157,13 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
     @Override
     public void write(KeyValue kv) throws Exception {
         long sequenceNumber = newSequenceNumber();
+        // 数据先塞进内存
         boolean success = writeBuffer.put(sequenceNumber, kv.valueKind(), kv.key(), kv.value());
         if (!success) {
+            // 内存满了就把内存中的数据溢写到磁盘，然后把内存清空，随后在写到内存
             flushWriteBuffer(false, false);
-            success = writeBuffer.put(sequenceNumber, kv.valueKind(), kv.key(), kv.value());
+            success = writeBuffer.put
+                    (sequenceNumber, kv.valueKind(), kv.key(), kv.value());
             if (!success) {
                 throw new RuntimeException("Mem table is too small to hold a single element.");
             }
@@ -207,18 +210,23 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
                 waitForLatestCompaction = true;
             }
 
+            //写 changelog 文件的 Writer
             final RollingFileWriter<KeyValue, DataFileMeta> changelogWriter =
                     changelogProducer == ChangelogProducer.INPUT
                             ? writerFactory.createRollingChangelogFileWriter(0)
                             : null;
+            // 写 data 文件的 Writer
             final RollingFileWriter<KeyValue, DataFileMeta> dataWriter =
                     writerFactory.createRollingMergeTreeFileWriter(0);
 
             try {
+                // 循环内存中的每条数据
                 writeBuffer.forEach(
                         keyComparator,
+                        // 写磁盘时会做 merge 操作
                         mergeFunction,
                         changelogWriter == null ? null : changelogWriter::write,
+                        // 一直跟下去，最后调用的是 apache 的 orc 包（如果文件格式是orc的情况下）
                         dataWriter::write);
             } finally {
                 if (changelogWriter != null) {
@@ -227,10 +235,12 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
                 dataWriter.close();
             }
 
+            // 新增文件信息缓存在这里，做 cp 的时候会 flush 到下游
             if (changelogWriter != null) {
                 newFilesChangelog.addAll(changelogWriter.result());
             }
 
+            // 新增文件信息缓存在这里，做 cp 的时候会 flush 到下游
             for (DataFileMeta fileMeta : dataWriter.result()) {
                 newFiles.add(fileMeta);
                 compactManager.addNewFile(fileMeta);

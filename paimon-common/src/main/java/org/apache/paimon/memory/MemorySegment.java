@@ -492,6 +492,7 @@ public final class MemorySegment {
         final long thisPointer = this.address + offset;
         final long otherPointer = target.address + targetOffset;
 
+        // thisHeapRef 和 thisPointer 是source， otherHeapRef 和 otherPointer 是 target， numBytes 是 length
         UNSAFE.copyMemory(thisHeapRef, thisPointer, otherHeapRef, otherPointer, numBytes);
     }
 

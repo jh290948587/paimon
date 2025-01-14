@@ -103,6 +103,7 @@ public class RowDataStoreWriteOperator extends TableWriteOperator<InternalRow> {
                 richFunction.open(new Configuration());
             }
 
+            // 每一条信息写给 kafka 之后的回调，用于记录位点
             logCallback = new LogWriteCallback();
             logSinkFunction.setWriteCallback(logCallback);
         }
@@ -125,6 +126,7 @@ public class RowDataStoreWriteOperator extends TableWriteOperator<InternalRow> {
 
         SinkRecord record;
         try {
+            // 数据写入 DataFile，主键表会调用到 MergeTreeWriter 的 write 方法
             record = write.write(element.getValue());
         } catch (Exception e) {
             throw new IOException(e);
@@ -132,7 +134,9 @@ public class RowDataStoreWriteOperator extends TableWriteOperator<InternalRow> {
 
         if (record != null && logSinkFunction != null) {
             // write to log store, need to preserve original pk (which includes partition fields)
+            // 数据写入 Kafka
             SinkRecord logRecord = write.toLogRecord(record);
+            //调用 kafka 的 client，写数据
             logSinkFunction.invoke(logRecord, sinkContext);
         }
     }

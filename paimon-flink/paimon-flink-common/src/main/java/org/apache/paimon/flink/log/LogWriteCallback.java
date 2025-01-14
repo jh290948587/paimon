@@ -30,6 +30,7 @@ public class LogWriteCallback implements WriteCallback {
 
     private final ConcurrentHashMap<Integer, LongAccumulator> offsetMap = new ConcurrentHashMap<>();
 
+    // 回调函数，更新 bucket 中的数据写到哪个位点了
     @Override
     public void onCompletion(int bucket, long offset) {
         LongAccumulator acc = offsetMap.get(bucket);
@@ -43,6 +44,7 @@ public class LogWriteCallback implements WriteCallback {
         acc.accumulate(offset + 1);
     }
 
+    // 做 cp 之前会调用这个函数，获取每个 bucket 的最新位点，返回 map，最后会写到 snapshot 中
     public Map<Integer, Long> offsets() {
         Map<Integer, Long> offsets = new HashMap<>();
         offsetMap.forEach((k, v) -> offsets.put(k, v.longValue()));

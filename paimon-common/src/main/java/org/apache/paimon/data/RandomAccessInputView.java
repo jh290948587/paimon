@@ -58,6 +58,7 @@ public class RandomAccessInputView extends AbstractPagedInputView implements See
 
     @Override
     public void setReadPosition(long position) {
+        // 求出数据所在具体的 MemorySegment，以及在它之上的 offset
         final int bufferNum = (int) (position >>> this.segmentSizeBits);
         final int offset = (int) (position & this.segmentSizeMask);
 

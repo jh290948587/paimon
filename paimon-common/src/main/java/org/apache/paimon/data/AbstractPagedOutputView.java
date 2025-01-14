@@ -387,11 +387,14 @@ public abstract class AbstractPagedOutputView implements DataOutputView, MemoryS
     @Override
     public void write(MemorySegment segment, int off, int len) throws IOException {
         int remaining = this.segmentSize - this.positionInSegment;
+        // 当前 MemorySegment 完全能容纳要写的内容
         if (remaining >= len) {
+            // copyTo 方法，将 BinaryRow 中的数据写到 MemorySegment 中
             segment.copyTo(off, currentSegment, positionInSegment, len);
             this.positionInSegment += len;
         } else {
 
+            // 当前 MemorySegment 刚好没容量了，申请新的 MemorySegment
             if (remaining == 0) {
                 advance();
                 remaining = this.segmentSize - this.positionInSegment;
@@ -405,6 +408,7 @@ public abstract class AbstractPagedOutputView implements DataOutputView, MemoryS
 
                 if (len > 0) {
                     this.positionInSegment = this.segmentSize;
+                    // 还是申请新的 MemorySegment
                     advance();
                     remaining = this.segmentSize - this.positionInSegment;
                 } else {

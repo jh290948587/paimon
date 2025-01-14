@@ -103,7 +103,11 @@ public class KeyValueDataFileWriter
     }
 
     @Override
+    // 从 MergeTreeWriter 的 flushWriteBuffer 的 dataWriter::write 调过来
+    // 生成的所有写入文件的信息缓存在内存中，供算子在进行ck的时候将所有的 flush 下发到下游算子（commit 算子）
+    // 下发是在 prepareSnapshotPreBarrier 方法中进行的，所以会在下游进行 ck 之前接受所有的 flush 信息
     public void write(KeyValue kv) throws IOException {
+        // 一直调，最后会到真正写入实现
         super.write(kv);
 
         updateMinKey(kv);

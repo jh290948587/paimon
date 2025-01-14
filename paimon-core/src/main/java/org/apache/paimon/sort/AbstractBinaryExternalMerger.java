@@ -93,6 +93,7 @@ public abstract class AbstractBinaryExternalMerger<Entry> implements Closeable {
 
         final List<MutableObjectIterator<Entry>> iterators = new ArrayList<>(channelIDs.size() + 1);
 
+        // 对每个文件生成各自的 Iterator，然后把这些 Iterator 放到一个最小堆里面
         for (ChannelWithMeta channel : channelIDs) {
             ChannelReaderInputView view =
                     FileChannelUtil.createInputView(
@@ -141,6 +142,9 @@ public abstract class AbstractBinaryExternalMerger<Entry> implements Closeable {
         final List<ChannelWithMeta> channelsToMergeThisStep =
                 new ArrayList<>(channelsToMergePerStep);
         int channelNum = numNotMerged;
+
+        // 前面的数字都是根据参数算出来的，算的是需要合并几轮
+        // 这里是关键的 mergeChannels 的实现
         while (!closed && channelNum < channelIDs.size()) {
             channelsToMergeThisStep.clear();
 
@@ -149,7 +153,7 @@ public abstract class AbstractBinaryExternalMerger<Entry> implements Closeable {
                     i++, channelNum++) {
                 channelsToMergeThisStep.add(channelIDs.get(channelNum));
             }
-
+            // 这里是关键的 mergeChannels 的实现
             mergedChannelIDs.add(mergeChannels(channelsToMergeThisStep));
         }
 
@@ -162,6 +166,7 @@ public abstract class AbstractBinaryExternalMerger<Entry> implements Closeable {
      * @param channelIDs The IDs of the runs' channels.
      * @return The ID and number of blocks of the channel that describes the merged run.
      */
+    // 多个文件合并成一个排好序的文件，重点是这个 Iterator 是怎么实现的
     private ChannelWithMeta mergeChannels(List<ChannelWithMeta> channelIDs) throws IOException {
         // the list with the target iterators
         List<FileIOChannel> openChannels = new ArrayList<>(channelIDs.size());
@@ -194,6 +199,7 @@ public abstract class AbstractBinaryExternalMerger<Entry> implements Closeable {
         }
 
         // remove, close and delete channels
+        // 合并完就可以删除老文件了
         for (FileIOChannel channel : openChannels) {
             channelManager.removeChannel(channel.getChannelID());
             try {

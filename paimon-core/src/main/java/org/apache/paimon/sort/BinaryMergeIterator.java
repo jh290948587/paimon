@@ -39,6 +39,8 @@ public class BinaryMergeIterator<Entry> implements MutableObjectIterator<Entry> 
             Comparator<Entry> comparator)
             throws IOException {
         checkArgument(iterators.size() == reusableEntries.size());
+
+        // heap 是优先队列，小顶堆，comparator.compare 比较，文件第一个记录更小的 Iterator 排在队列前面
         this.heap =
                 new PartialOrderPriorityQueue<>(
                         (o1, o2) -> comparator.compare(o1.getHead(), o2.getHead()),
@@ -58,14 +60,17 @@ public class BinaryMergeIterator<Entry> implements MutableObjectIterator<Entry> 
     public Entry next() throws IOException {
         if (currHead != null) {
             if (currHead.noMoreHead()) {
+                // 如果队列中堆顶文件已经被读完了，从队列中删除它
                 this.heap.poll();
             } else {
+                // 没读完一条数据都要调整最小堆，寻找下一个最小记录的文件
                 this.heap.adjustTop();
             }
         }
 
         if (this.heap.size() > 0) {
             currHead = this.heap.peek();
+            // 返回的是，对李忠最小堆堆顶的哪个迭代器的头，也就是文件中的第一条记录
             return currHead.getHead();
         } else {
             return null;
@@ -77,6 +82,7 @@ public class BinaryMergeIterator<Entry> implements MutableObjectIterator<Entry> 
         private final MutableObjectIterator<Entry> iterator;
         private Entry head;
 
+        // 针对文件内容的迭代器，前面封装好后传到这里的
         private HeadStream(MutableObjectIterator<Entry> iterator, Entry head) throws IOException {
             this.iterator = iterator;
             this.head = head;
@@ -85,10 +91,12 @@ public class BinaryMergeIterator<Entry> implements MutableObjectIterator<Entry> 
             }
         }
 
+        // 返回这个文件中的记录
         private Entry getHead() {
             return this.head;
         }
 
+        // 判断这个文件还有没有数据了
         private boolean noMoreHead() throws IOException {
             return (this.head = this.iterator.next(head)) == null;
         }

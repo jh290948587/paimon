@@ -100,11 +100,14 @@ public abstract class FlinkSink<T> implements Serializable {
         if (table.coreOptions().writeOnly()) {
             waitCompaction = false;
         } else {
+            // 是否在预提交阶段等待压缩完成
             waitCompaction = prepareCommitWaitCompaction(options);
             int deltaCommits = -1;
             if (options.contains(FULL_COMPACTION_DELTA_COMMITS)) {
+                // 如果有配置此参数（多少次delta会触发一次完全压缩），则取出赋给变量 deltaCommits
                 deltaCommits = options.get(FULL_COMPACTION_DELTA_COMMITS);
             } else if (options.contains(CHANGELOG_PRODUCER_FULL_COMPACTION_TRIGGER_INTERVAL)) {
+                // 如果有配置此参数（多长间隔执行一次完全压缩），则取出赋给变量 deltaCommits
                 long fullCompactionThresholdMs =
                         options.get(CHANGELOG_PRODUCER_FULL_COMPACTION_TRIGGER_INTERVAL).toMillis();
                 deltaCommits =
@@ -209,6 +212,7 @@ public abstract class FlinkSink<T> implements Serializable {
         StreamExecutionEnvironment env = input.getExecutionEnvironment();
         boolean isStreaming = isStreaming(input);
 
+        // 如果为true，则在写入过程中不做压缩和快照过期操作，需要专门起压缩作业，不然小文件会很多
         boolean writeOnly = table.coreOptions().writeOnly();
         SingleOutputStreamOperator<Committable> written =
                 input.transform(
@@ -216,20 +220,26 @@ public abstract class FlinkSink<T> implements Serializable {
                                         + " : "
                                         + table.name(),
                                 new CommittableTypeInfo(),
+                                // 创建真正写文件的算子，此方法在 FlinkSink 这个父类中是个抽象方法，
+                                // 具体调用哪个子类的方法取决于运行时调用父类方法的是哪个子类，此流程调用方法的子类是 FixedBucketSink
+                                // 这是java的动态绑定机制
                                 createWriteOperator(
                                         createWriteProvider(
                                                 env.getCheckpointConfig(),
                                                 isStreaming,
+                                                // 是否开启了flink sink端的物化视图
                                                 hasSinkMaterializer(input)),
                                         commitUser))
                         .setParallelism(parallelism == null ? input.getParallelism() : parallelism);
 
         if (!isStreaming) {
+            // 目前批作业不支持AdapterBatchScheduler写paimon表
             assertBatchConfiguration(env, written.getParallelism());
         }
 
         Options options = Options.fromMap(table.options());
         if (options.get(SINK_USE_MANAGED_MEMORY)) {
+            // 专门申请管理内存在支持写的操作，不然直接用tm原来申请的内存
             declareManagedMemory(written, options.get(SINK_MANAGED_WRITER_BUFFER_MEMORY));
         }
         return written;

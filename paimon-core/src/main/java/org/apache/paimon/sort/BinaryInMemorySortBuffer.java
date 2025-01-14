@@ -166,21 +166,27 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
         tryInitialize();
 
         // check whether we need a new memory segment for the sort index
+        // 申请不到用于排序的 MemorySegement 时，则返回false，执行flush
         if (!checkNextIndexOffset()) {
             return false;
         }
 
         // serialize the record into the data buffers
+        // 申请不到用于存数据的 MemorySegement 时，则返回false，执行flush
         int skip;
         try {
+            // 将record 通过 BinaryRowSerializer 序列化进 MemorySegement 中，也就是写入内存
             skip = this.inputSerializer.serializeToPages(record, this.recordCollector);
         } catch (EOFException e) {
             return false;
         }
 
+        // newOffset 是写完这条数据后， OutputView 的最新 offset
         final long newOffset = this.recordCollector.getCurrentOffset();
         long currOffset = currentDataBufferOffset + skip;
 
+        // 对 key 进行 Mormalize，方便比较
+        // 将这条记录在 OutputView 中的 offset 写入到 Index MemorySegement 中
         writeIndexAndNormalizedKey(record, currOffset);
 
         this.sortIndexBytes += this.indexEntrySize;
@@ -190,6 +196,7 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
     }
 
     private BinaryRow getRecordFromBuffer(BinaryRow reuse, long pointer) throws IOException {
+        // 根据 Index Memorysegment 中记录的位点，来data buffer中找真正的数据
         this.recordBuffer.setReadPosition(pointer);
         return this.serializer.mapFromPages(reuse, this.recordBuffer);
     }
@@ -215,6 +222,7 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
 
             @Override
             public BinaryRow next(BinaryRow target) {
+                // 按序读 data buffer 中的每个 MemorySegment
                 if (this.current < this.size) {
                     this.current++;
                     if (this.currentOffset > lastIndexEntryOffset) {
@@ -222,10 +230,13 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
                         this.currentIndexSegment = sortIndex.get(++this.currentSegment);
                     }
 
+                    // 读取数据在 data buffer 中的 offset
                     long pointer = this.currentIndexSegment.getLong(this.currentOffset);
+//                    位点移动到下一个记录的 offset
                     this.currentOffset += indexEntrySize;
 
                     try {
+                        // 从 data buffer 中反序列化出 BinaryRow 返回
                         return getRecordFromBuffer(target, pointer);
                     } catch (IOException ioe) {
                         throw new RuntimeException(ioe);
@@ -245,6 +256,7 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
     @Override
     public final MutableObjectIterator<BinaryRow> sortedIterator() {
         if (numRecords > 0) {
+            // 实现了可排序接口中的 compare 和swap，所以先进行全局快速排序
             new QuickSort().sort(this);
         }
         return iterator();

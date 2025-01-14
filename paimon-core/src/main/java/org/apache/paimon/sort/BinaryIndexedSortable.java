@@ -133,11 +133,13 @@ public abstract class BinaryIndexedSortable implements IndexedSortable {
     /** Write of index and normalizedKey. */
     protected void writeIndexAndNormalizedKey(InternalRow record, long currOffset) {
         // add the pointer and the normalized key
+        // 在 Index MemorySegment 中记录这条数据在 OutputView 中的 offset
         this.currentSortIndexSegment.putLong(this.currentSortIndexOffset, currOffset);
 
         if (this.numKeyBytes != 0) {
+            // 将这条记录的key归一化后写入 Index MemorySegment 中
             normalizedKeyComputer.putKey(
-                    record, this.currentSortIndexSegment, this.currentSortIndexOffset + OFFSET_LEN);
+                    record, this.currentSortIndexSegment, this.currentSortIndexOffset + OFFSET_LEN); // OFFSET_LEN等于8，因为上面的putLong中的long是8个字节
         }
 
         this.currentSortIndexOffset += this.indexEntrySize;
