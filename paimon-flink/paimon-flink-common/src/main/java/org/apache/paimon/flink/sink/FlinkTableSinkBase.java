@@ -122,7 +122,8 @@ public abstract class FlinkTableSinkBase
             logSinkProvider = logStoreTableFactory.createSinkProvider(this.context, context);
         }
         /**
-         * table是 {@link org.apache.paimon.table.FileStoreTableFactory} 的create方法创建的，其中会区分PK表和Append表
+         * table是 {@link org.apache.paimon.table.FileStoreTableFactory}
+         * 的create方法创建的，其中会区分PK表和Append表
          */
         Options conf = Options.fromMap(table.options());
         // Do not sink to log store when overwrite mode

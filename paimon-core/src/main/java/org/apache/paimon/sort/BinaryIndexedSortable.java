@@ -139,7 +139,10 @@ public abstract class BinaryIndexedSortable implements IndexedSortable {
         if (this.numKeyBytes != 0) {
             // 将这条记录的key归一化后写入 Index MemorySegment 中
             normalizedKeyComputer.putKey(
-                    record, this.currentSortIndexSegment, this.currentSortIndexOffset + OFFSET_LEN); // OFFSET_LEN等于8，因为上面的putLong中的long是8个字节
+                    record,
+                    this.currentSortIndexSegment,
+                    this.currentSortIndexOffset
+                            + OFFSET_LEN); // OFFSET_LEN等于8，因为上面的putLong中的long是8个字节
         }
 
         this.currentSortIndexOffset += this.indexEntrySize;

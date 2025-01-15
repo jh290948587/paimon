@@ -74,7 +74,8 @@ public abstract class PrepareCommitOperator<IN, OUT> extends AbstractStreamOpera
         }
     }
 
-    // 在 Write 节点（PrepareCommitOperator的子类），做 ck 之前， Flink 框架会调用 prepareSnapshotPreBarrier 方法，发给下游（CommitOperator 节点）
+    // 在 Write 节点（PrepareCommitOperator的子类），做 ck 之前， Flink 框架会调用 prepareSnapshotPreBarrier
+    // 方法，发给下游（CommitOperator 节点）
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
         if (!endOfInput) {

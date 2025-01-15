@@ -136,7 +136,7 @@ public class RowDataStoreWriteOperator extends TableWriteOperator<InternalRow> {
             // write to log store, need to preserve original pk (which includes partition fields)
             // 数据写入 Kafka
             SinkRecord logRecord = write.toLogRecord(record);
-            //调用 kafka 的 client，写数据
+            // 调用 kafka 的 client，写数据
             logSinkFunction.invoke(logRecord, sinkContext);
         }
     }

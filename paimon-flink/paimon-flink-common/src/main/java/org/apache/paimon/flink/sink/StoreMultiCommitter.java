@@ -110,7 +110,7 @@ public class StoreMultiCommitter
             switch (committable.kind()) {
                 case FILE:
                     CommitMessage file = (CommitMessage) committable.wrappedCommittable();
-//                    将所有 CommitMessage 添加到一个 list 中
+                    //                    将所有 CommitMessage 添加到一个 list 中
                     manifestCommittable.addFileCommittable(file);
                     break;
                 case LOG_OFFSET:

@@ -162,8 +162,7 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
         if (!success) {
             // 内存满了就把内存中的数据溢写到磁盘，然后把内存清空，随后在写到内存
             flushWriteBuffer(false, false);
-            success = writeBuffer.put
-                    (sequenceNumber, kv.valueKind(), kv.key(), kv.value());
+            success = writeBuffer.put(sequenceNumber, kv.valueKind(), kv.key(), kv.value());
             if (!success) {
                 throw new RuntimeException("Mem table is too small to hold a single element.");
             }
@@ -210,7 +209,7 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
                 waitForLatestCompaction = true;
             }
 
-            //写 changelog 文件的 Writer
+            // 写 changelog 文件的 Writer
             final RollingFileWriter<KeyValue, DataFileMeta> changelogWriter =
                     changelogProducer == ChangelogProducer.INPUT
                             ? writerFactory.createRollingChangelogFileWriter(0)

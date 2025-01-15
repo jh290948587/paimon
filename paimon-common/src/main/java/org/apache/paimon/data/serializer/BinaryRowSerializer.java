@@ -210,7 +210,7 @@ public class BinaryRowSerializer extends AbstractRowDataSerializer<BinaryRow> {
                             headerLessView.getCurrentSegmentLimit()));
         }
 
-//        目前这个 MemorySegement 剩余可读字节数
+        //        目前这个 MemorySegement 剩余可读字节数
         int remainInSegment =
                 headerLessView.getCurrentSegmentLimit()
                         - headerLessView.getCurrentPositionInSegment();

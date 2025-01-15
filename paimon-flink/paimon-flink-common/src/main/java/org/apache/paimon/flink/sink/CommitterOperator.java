@@ -162,7 +162,7 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
     @Override
     public void notifyCheckpointComplete(long checkpointId) throws Exception {
         super.notifyCheckpointComplete(checkpointId);
-//        cp 完成后，paimon就可以创建 snapshot 啦
+        //        cp 完成后，paimon就可以创建 snapshot 啦
         commitUpToCheckpoint(endInput ? END_INPUT_CHECKPOINT_ID : checkpointId);
     }
 

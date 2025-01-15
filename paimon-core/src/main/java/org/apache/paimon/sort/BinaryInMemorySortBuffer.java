@@ -232,7 +232,7 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
 
                     // 读取数据在 data buffer 中的 offset
                     long pointer = this.currentIndexSegment.getLong(this.currentOffset);
-//                    位点移动到下一个记录的 offset
+                    //                    位点移动到下一个记录的 offset
                     this.currentOffset += indexEntrySize;
 
                     try {

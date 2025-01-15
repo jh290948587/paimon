@@ -232,7 +232,8 @@ public class FileStoreCommitImpl implements FileStoreCommit {
         Long safeLatestSnapshotId = null;
         List<SimpleFileEntry> baseEntries = new ArrayList<>();
 
-        // 循环 ManifestCommittable 中的各个 ManifestEntry,将文件信息加入到各个 list 文件中      commit 的每个 ManifestCommittable 中的每个 CommitMessage
+        // 循环 ManifestCommittable 中的各个 ManifestEntry,将文件信息加入到各个 list 文件中      commit 的每个
+        // ManifestCommittable 中的每个 CommitMessage
         // write 产生的新增 data 文件
         // write 产生的新增 changelog 文件
         // compaction before 文件

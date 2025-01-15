@@ -263,7 +263,7 @@ public class TableCommitImpl implements InnerTableCommit {
                         .sorted(Comparator.comparingLong(ManifestCommittable::identifier))
                         .collect(Collectors.toList());
         if (!retryCommittables.isEmpty()) {
-//            如果文件确实则报错，没问题的话，重新尝试 commit
+            //            如果文件确实则报错，没问题的话，重新尝试 commit
             checkFilesExistence(retryCommittables);
             commitMultiple(retryCommittables, checkAppendFiles);
         }

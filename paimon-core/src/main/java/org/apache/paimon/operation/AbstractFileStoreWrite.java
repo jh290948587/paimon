@@ -197,7 +197,8 @@ public abstract class AbstractFileStoreWrite<T> implements FileStoreWrite<T> {
                 int bucket = entry.getKey();
                 WriterContainer<T> writerContainer = entry.getValue();
 
-                // 调用每个 partition 的每个 bucket 的每个 write 的 prepareCommit 方法，来获取这一次 commit 的新增文件等信息，最后统一发给下游
+                // 调用每个 partition 的每个 bucket 的每个 write 的 prepareCommit 方法，来获取这一次 commit
+                // 的新增文件等信息，最后统一发给下游
                 // 针对每个 bucket，其实都是一个 LSM Tree，都是通过 MergeTreeWrite 来实现的
                 CommitIncrement increment = writerContainer.writer.prepareCommit(waitCompaction);
                 List<IndexFileMeta> newIndexFiles = new ArrayList<>();
