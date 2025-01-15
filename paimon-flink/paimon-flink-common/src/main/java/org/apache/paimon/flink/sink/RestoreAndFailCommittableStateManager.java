@@ -72,6 +72,7 @@ public class RestoreAndFailCommittableStateManager<GlobalCommitT>
                                                 BytePrimitiveArraySerializer.INSTANCE)),
                         committableSerializer.get());
         List<GlobalCommitT> restored = new ArrayList<>();
+        // 先把 state 中的数据读出来，放到一个 list 中
         streamingCommitterState.get().forEach(restored::add);
         streamingCommitterState.clear();
         recover(restored, committer);
@@ -79,6 +80,7 @@ public class RestoreAndFailCommittableStateManager<GlobalCommitT>
 
     private void recover(List<GlobalCommitT> committables, Committer<?, GlobalCommitT> committer)
             throws Exception {
+        // 之前遗漏的 ManifestCommittable 尝试进行提交
         int numCommitted = committer.filterAndCommit(committables);
         if (numCommitted > 0) {
             throw new RuntimeException(
@@ -92,6 +94,7 @@ public class RestoreAndFailCommittableStateManager<GlobalCommitT>
     @Override
     public void snapshotState(StateSnapshotContext context, List<GlobalCommitT> committables)
             throws Exception {
+        // 状态里存的是 List<ManifestCommittable>，也就是多个 snapshot
         streamingCommitterState.update(committables);
     }
 }

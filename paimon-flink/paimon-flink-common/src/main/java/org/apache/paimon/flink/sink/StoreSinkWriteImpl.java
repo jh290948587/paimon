@@ -211,6 +211,7 @@ public class StoreSinkWriteImpl implements StoreSinkWrite {
         List<Committable> committables = new ArrayList<>();
         if (write != null) {
             try {
+                // 遍历所有 CommitMessage
                 for (CommitMessage committable :
                         write.prepareCommit(this.waitCompaction || waitCompaction, checkpointId)) {
                     committables.add(

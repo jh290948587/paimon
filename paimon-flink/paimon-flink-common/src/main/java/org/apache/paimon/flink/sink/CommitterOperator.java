@@ -162,10 +162,12 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
     @Override
     public void notifyCheckpointComplete(long checkpointId) throws Exception {
         super.notifyCheckpointComplete(checkpointId);
+//        cp 完成后，paimon就可以创建 snapshot 啦
         commitUpToCheckpoint(endInput ? END_INPUT_CHECKPOINT_ID : checkpointId);
     }
 
     private void commitUpToCheckpoint(long checkpointId) throws Exception {
+        // 获取出 cp 号小于等于这次 cp 的信息
         NavigableMap<Long, GlobalCommitT> headMap =
                 committablesPerCheckpoint.headMap(checkpointId, true);
         List<GlobalCommitT> committables = committables(headMap);
@@ -185,6 +187,7 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
             // there is no need to check for duplicated append files.
             committer.filterAndCommit(committables, false);
         } else {
+            // 执行 commit 操作，一次 cp 对应一次 commit
             committer.commit(committables);
         }
         headMap.clear();
@@ -193,6 +196,7 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
     @Override
     public void processElement(StreamRecord<CommitT> element) {
         output.collect(element);
+        // 收到上游发送的各个 Bucket Writer 的新增文件信息，缓存到 Queue 中
         this.inputs.add(element.getValue());
     }
 
@@ -211,6 +215,9 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
     }
 
     private void pollInputs() throws Exception {
+        // 根据 cp 做聚合
+        // 有多个 cp 的原因是有些之前的 cp 可能会是失败的，或者这次 cp 没有完成，新的 cp 又触发了
+        // 这里会把比当前 checkpointId 更小的 checkpointId 对应的各个 GlobalCommittable 一起提交到外部系统（hdfs等）
         Map<Long, List<CommitT>> grouped = committer.groupByCheckpoint(inputs);
 
         for (Map.Entry<Long, List<CommitT>> entry : grouped.entrySet()) {
@@ -222,6 +229,7 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
             // while other tasks pass a Committable with END_INPUT_CHECKPOINT_ID during other
             // checkpoints hence causing an error here, we have a special handling for Committables
             // with END_INPUT_CHECKPOINT_ID: instead of throwing an error, we merge them.
+            // 兼容特殊情况，cpId 是 long max 时，不报错而是 merge
             if (cp != null
                     && cp == END_INPUT_CHECKPOINT_ID
                     && committablesPerCheckpoint.containsKey(cp)) {
@@ -241,6 +249,8 @@ public class CommitterOperator<CommitT, GlobalCommitT> extends AbstractStreamOpe
                                         + "and the subsequent files is %s",
                                 committablesPerCheckpoint.get(cp), committables));
             } else {
+                // 对每个 cp 的 committer 信息单独做聚合操作
+                // key 是 cpId，value是将多个 commitMessage 合并成一个 snapshot 也就是 ManifestCommittable
                 committablesPerCheckpoint.put(cp, toCommittables(cp, committables));
             }
         }

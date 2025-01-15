@@ -205,6 +205,7 @@ public class TableCommitImpl implements InnerTableCommit {
 
     public void commitMultiple(List<ManifestCommittable> committables, boolean checkAppendFiles) {
         if (overwritePartition == null) {
+            // 对每个 manifest 创建一个 snapshot
             for (ManifestCommittable committable : committables) {
                 commit.commit(committable, new HashMap<>(), checkAppendFiles);
             }
@@ -229,6 +230,8 @@ public class TableCommitImpl implements InnerTableCommit {
             expire(committable.identifier(), expireMainExecutor);
         }
 
+        // commit 之后执行一些 callback，比如创建 tag，创建 partition 等
+        // 也支持用户插件话传递 callback
         commitCallbacks.forEach(c -> c.call(committables));
     }
 
@@ -246,6 +249,7 @@ public class TableCommitImpl implements InnerTableCommit {
 
         // commitCallback may fail after the snapshot file is successfully created,
         // so we have to try all of them again
+        // 执行 callback，比如创建 tag，partition 等
         List<ManifestCommittable> succeededCommittables =
                 committables.stream()
                         .filter(c -> !retryIdentifiers.contains(c.identifier()))
@@ -259,6 +263,7 @@ public class TableCommitImpl implements InnerTableCommit {
                         .sorted(Comparator.comparingLong(ManifestCommittable::identifier))
                         .collect(Collectors.toList());
         if (!retryCommittables.isEmpty()) {
+//            如果文件确实则报错，没问题的话，重新尝试 commit
             checkFilesExistence(retryCommittables);
             commitMultiple(retryCommittables, checkAppendFiles);
         }

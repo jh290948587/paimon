@@ -197,6 +197,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
         Optional<Snapshot> latestSnapshot = snapshotManager.latestSnapshotOfUser(commitUser);
         if (latestSnapshot.isPresent()) {
             Set<Long> result = new HashSet<>();
+            // 再次重新提交 state 中的一些 snapshot
             for (Long identifier : commitIdentifiers) {
                 // if committable is newer than latest snapshot, then it hasn't been committed
                 if (identifier > latestSnapshot.get().commitIdentifier()) {
@@ -231,6 +232,13 @@ public class FileStoreCommitImpl implements FileStoreCommit {
         Long safeLatestSnapshotId = null;
         List<SimpleFileEntry> baseEntries = new ArrayList<>();
 
+        // 循环 ManifestCommittable 中的各个 ManifestEntry,将文件信息加入到各个 list 文件中      commit 的每个 ManifestCommittable 中的每个 CommitMessage
+        // write 产生的新增 data 文件
+        // write 产生的新增 changelog 文件
+        // compaction before 文件
+        // compaction after 文件
+        // compaction changelog 文件
+        // index 文件
         List<ManifestEntry> appendTableFiles = new ArrayList<>();
         List<ManifestEntry> appendChangelog = new ArrayList<>();
         List<ManifestEntry> compactTableFiles = new ArrayList<>();
@@ -262,6 +270,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
                 if (latestSnapshot != null && checkAppendFiles) {
                     // it is possible that some partitions only have compact changes,
                     // so we need to contain all changes
+                    // 过滤出被修改的 partition，并做一些冲突检查，比如是否有别的作业这个时候也刚好在 commit
                     baseEntries.addAll(
                             readAllEntriesFromChangedPartitions(
                                     latestSnapshot, appendTableFiles, compactTableFiles));
@@ -664,6 +673,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
             String branchName,
             @Nullable String statsFileName) {
         int cnt = 0;
+        // 开始尝试 commit，无限循环，直到成功，或者抛出异常，走 flink failover 逻辑
         while (true) {
             Snapshot latestSnapshot = snapshotManager.latestSnapshot(branchName);
             cnt++;
@@ -818,6 +828,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
                 previousIndexManifest = latestSnapshot.indexManifest();
             }
             // merge manifest files with changes
+            // 写 meta 相关文件，写之前要对新老 meta 做一次 merge
             newMetas.addAll(
                     ManifestFileMeta.merge(
                             oldMetas,
@@ -835,6 +846,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
             long totalRecordCount = previousTotalRecordCount + deltaRecordCount;
 
             // write new changes into manifest files
+            // 写 manifest 文件以及 manifsetlist 文件
             List<ManifestFileMeta> newChangesManifests = manifestFile.write(tableFiles);
             newMetas.addAll(newChangesManifests);
             newChangesListName = manifestList.write(newChangesManifests);
@@ -869,6 +881,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
             }
 
             // prepare snapshot file
+            // 准备 snapshot 相关信息，再放到一个 json 对象中
             newSnapshot =
                     new Snapshot(
                             newSnapshotId,
@@ -889,6 +902,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
                             statsFileName);
         } catch (Throwable e) {
             // fails when preparing for commit, we should clean up
+            // 抛出异常时，走 cleanUpTmpManifests 逻辑来清理这些文件，然后走 flink failover 逻辑
             cleanUpTmpManifests(
                     previousChangesListName,
                     newChangesListName,
@@ -916,6 +930,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
                         boolean committed =
                                 fileIO.writeFileUtf8(newSnapshotPath, newSnapshot.toJson());
                         if (committed) {
+                            // 最后执行 commit 操作，也就是把 snapshot 信息持久化到磁盘上了
                             snapshotManager.commitLatestHint(newSnapshotId, branchName);
                         }
                         return committed;
@@ -929,6 +944,8 @@ public class FileStoreCommitImpl implements FileStoreCommit {
                                         // as we're relying on external locking, we can first
                                         // check if file exist then rename to work around this
                                         // case
+                                        // 如果已经存在则不 commit，返回 false，重试
+                                        // 否则进行 commit
                                         !fileIO.exists(newSnapshotPath) && callable.call());
             } else {
                 success = callable.call();
@@ -949,6 +966,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
                     e);
         }
 
+        // 不成功走重试逻辑
         if (success) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug(
@@ -1015,6 +1033,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
         List<SimpleFileEntry> allEntries = new ArrayList<>(baseEntries);
         allEntries.addAll(changes);
 
+        // 检查多个 Writer 作业在执行 compaction 时是否会将同一个文件置为 Deleted
         Collection<SimpleFileEntry> mergedEntries;
         try {
             // merge manifest entries and also check if the files we want to delete are still there
@@ -1051,6 +1070,7 @@ public class FileStoreCommitImpl implements FileStoreCommit {
         }
 
         // check for all LSM level >= 1, key ranges of files do not intersect
+        // 检查两个 Writer 在 compaction 时，会不会导致 sst 之间的 overlap
         for (List<SimpleFileEntry> entries : levels.values()) {
             entries.sort((a, b) -> keyComparator.compare(a.minKey(), b.minKey()));
             for (int i = 0; i + 1 < entries.size(); i++) {

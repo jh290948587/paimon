@@ -255,6 +255,7 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
 
     @Override
     public CommitIncrement prepareCommit(boolean waitCompaction) throws Exception {
+        // 先把内存中的数据 flush 到磁盘，且记录下新增文件
         flushWriteBuffer(waitCompaction, false);
         if (commitForceCompact) {
             waitCompaction = true;
@@ -267,6 +268,7 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
         if (compactManager.shouldWaitForPreparingCheckpoint()) {
             waitCompaction = true;
         }
+        // 同步最后一次 compaction 的信息，把新增文件信息全部记录下来封装到一个对象中返回
         trySyncLatestCompaction(waitCompaction);
         return drainIncrement();
     }
@@ -300,6 +302,7 @@ public class MergeTreeWriter implements RecordWriter<KeyValue>, MemoryOwner {
         compactAfter.clear();
         compactChangelog.clear();
 
+        // 最终返回的 commitMessage
         return new CommitIncrement(dataIncrement, compactIncrement);
     }
 
