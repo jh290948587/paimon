@@ -185,7 +185,7 @@ public class BinaryInMemorySortBuffer extends BinaryIndexedSortable implements S
         final long newOffset = this.recordCollector.getCurrentOffset();
         long currOffset = currentDataBufferOffset + skip;
 
-        // 对 key 进行 Mormalize，方便比较
+        // 对 key 进行 Normalize，方便比较
         // 将这条记录在 OutputView 中的 offset 写入到 Index MemorySegement 中
         writeIndexAndNormalizedKey(record, currOffset);
 
