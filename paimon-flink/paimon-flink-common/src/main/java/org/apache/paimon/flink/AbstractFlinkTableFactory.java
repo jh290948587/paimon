@@ -87,6 +87,7 @@ import static org.apache.paimon.flink.LogicalTypeConversion.toLogicalType;
 import static org.apache.paimon.flink.log.LogStoreTableFactory.discoverLogStoreFactory;
 
 /** Abstract paimon factory to create table source and table sink. */
+// paimon 工厂类总入口，构建 source 和 sink
 public abstract class AbstractFlinkTableFactory
         implements DynamicTableSourceFactory, DynamicTableSinkFactory {
 

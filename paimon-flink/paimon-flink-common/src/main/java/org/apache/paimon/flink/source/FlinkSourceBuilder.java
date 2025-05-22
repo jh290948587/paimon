@@ -252,6 +252,7 @@ public class FlinkSourceBuilder {
         }
 
         if (sourceBounded) {
+            // 批读时的 source
             return buildStaticFileSource();
         }
 
@@ -263,25 +264,32 @@ public class FlinkSourceBuilder {
 
         if (logSourceProvider != null && streamingReadMode != FILE) {
             if (startupMode != StartupMode.LATEST_FULL) {
+                // 只读 logStore 的场景
                 return toDataStream(logSourceProvider.createSource(null));
             } else {
+                // HybridSource，也就是先读文件，再读 kakfa ，用了 Flip-150
                 return toDataStream(
                         HybridSource.<RowData, StaticFileStoreSplitEnumerator>builder(
+                                        // file store
                                         LogHybridSourceFactory.buildHybridFirstSource(
                                                 table, projectedFields, predicate))
                                 .addSource(
+                                        // log store
                                         new LogHybridSourceFactory(logSourceProvider),
                                         Boundedness.CONTINUOUS_UNBOUNDED)
                                 .build());
             }
         } else {
             if (conf.get(FlinkConnectorOptions.SOURCE_CHECKPOINT_ALIGN_ENABLED)) {
+                // cp 和 snapshot 对齐的流读，也就是 pip-5 的子任务
                 return buildAlignedContinuousFileSource();
             } else if (conf.contains(CoreOptions.CONSUMER_ID)
                     && conf.get(CoreOptions.CONSUMER_CONSISTENCY_MODE)
                             == CoreOptions.ConsumerMode.EXACTLY_ONCE) {
+                // Exactly_once 的流读，支持 consumer_id
                 return buildContinuousStreamOperator();
             } else {
+                // At_least_once 的流读，支持 consumer_id
                 return buildContinuousFileSource();
             }
         }

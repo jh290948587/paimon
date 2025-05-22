@@ -41,6 +41,7 @@ public class TableScanUtils {
                         put(CoreOptions.MergeEngine.FIRST_ROW, "First row");
                     }
                 };
+        // 如果是主键表，并且 mergeEngine 不是为 deduplicate 时，并且 changelogProducer 为 none 时，抛出异常
         if (table.primaryKeys().size() > 0 && mergeEngineDesc.containsKey(mergeEngine)) {
             if (options.changelogProducer() == CoreOptions.ChangelogProducer.NONE) {
                 throw new RuntimeException(

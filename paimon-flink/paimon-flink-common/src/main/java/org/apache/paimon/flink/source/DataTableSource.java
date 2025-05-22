@@ -162,11 +162,13 @@ public class DataTableSource extends FlinkTableSource {
     @Override
     public ScanRuntimeProvider getScanRuntimeProvider(ScanContext scanContext) {
         LogSourceProvider logSourceProvider = null;
+        // 是不是读 logStore，目前只支持 kafka
         if (logStoreTableFactory != null) {
             logSourceProvider =
                     logStoreTableFactory.createSourceProvider(context, scanContext, projectFields);
         }
 
+        // Paimon source 的 watermark 的生成策略还有发射周期
         WatermarkStrategy<RowData> watermarkStrategy = this.watermarkStrategy;
         Options options = Options.fromMap(table.options());
         if (watermarkStrategy != null) {
@@ -194,9 +196,9 @@ public class DataTableSource extends FlinkTableSource {
                         .sourceName(tableIdentifier.asSummaryString())
                         .sourceBounded(!streaming)
                         .logSourceProvider(logSourceProvider)
-                        .projection(projectFields)
-                        .predicate(predicate)
-                        .limit(limit)
+                        .projection(projectFields) // 要读取的字段（投影）
+                        .predicate(predicate) // 过滤条件
+                        .limit(limit) // 限制条数
                         .watermarkStrategy(watermarkStrategy)
                         .dynamicPartitionFilteringFields(dynamicPartitionFilteringFields);
 
@@ -204,9 +206,9 @@ public class DataTableSource extends FlinkTableSource {
                 !streaming,
                 env ->
                         sourceBuilder
-                                .sourceParallelism(inferSourceParallelism(env))
+                                .sourceParallelism(inferSourceParallelism(env)) // 根据配置设置并发数
                                 .env(env)
-                                .build());
+                                .build()); // 真正开始 create source 的地方
     }
 
     @Override
