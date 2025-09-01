@@ -66,6 +66,7 @@ public class AsyncLookupFunctionWrapper extends AsyncLookupFunction {
 
     @Override
     public CompletableFuture<Collection<RowData>> asyncLookup(RowData keyRow) {
+        // 异步 lookup 使用线程数可配置的固定线程池来提交请求，并返回一个 CompletableFuture
         return CompletableFuture.supplyAsync(() -> lookup(keyRow), executor());
     }
 

@@ -160,6 +160,7 @@ public abstract class FullCacheLookupTable implements LookupTable {
     protected void bootstrap() throws Exception {
         Predicate scanPredicate =
                 PredicateBuilder.andNullable(context.tablePredicate, specificPartition);
+        // 创建流读取器，用来加载数据到 LookupTable
         this.reader =
                 new LookupStreamingReader(
                         context.table,
@@ -174,6 +175,7 @@ public abstract class FullCacheLookupTable implements LookupTable {
         try (RecordReaderIterator<InternalRow> batch =
                 new RecordReaderIterator<>(reader.nextBatch(true))) {
             while (batch.hasNext()) {
+                // 从 hdfs 迭代读取数据并写入 inMemorySortBuffer，超过 inMemorySortBuffer 大小则溢写到文件，溢写之前 inMemorySortBuffer 会排序
                 InternalRow row = batch.next();
                 if (predicate == null || predicate.test(row)) {
                     bulkLoadSorter.write(GenericRow.of(toKeyBytes(row), toValueBytes(row)));
@@ -181,11 +183,13 @@ public abstract class FullCacheLookupTable implements LookupTable {
             }
         }
 
+        // 写 SST 之前做一次外部排序，否则 rocksdb 会报错
         MutableObjectIterator<BinaryRow> keyIterator = bulkLoadSorter.sortedIterator();
         BinaryRow row = new BinaryRow(2);
         TableBulkLoader bulkLoader = createBulkLoader();
         try {
             while ((row = keyIterator.next(row)) != null) {
+                // 不断的写 SST 文件，最后通过 ingestExternalFile 方法把文件整体加载进 rocksdb，之后就可以提供高效点查服务了
                 bulkLoader.write(row.getBinary(0), row.getBinary(1));
             }
         } catch (BulkLoader.WriteException e) {
@@ -201,11 +205,13 @@ public abstract class FullCacheLookupTable implements LookupTable {
 
     @Override
     public void refresh() throws Exception {
+        // 如果异步刷新线程池为空，则直接执行刷新逻辑（同步）
         if (refreshExecutor == null) {
             doRefresh();
             return;
         }
 
+        // 如果需要异步刷新，则需要比较最新快照 id 和 下一个要读取的快照 id 的差值，如果差值大于阈值，则说明快照数量差距过大，则需要等待上一个异步刷新完成
         Long latestSnapshotId = table.snapshotManager().latestSnapshotId();
         Long nextSnapshotId = reader.nextSnapshotId();
         if (latestSnapshotId != null
@@ -223,6 +229,7 @@ public abstract class FullCacheLookupTable implements LookupTable {
             }
             doRefresh();
         } else {
+            // 创建一个异步刷新任务
             Future<?> currentFuture = null;
             try {
                 currentFuture =
@@ -251,6 +258,7 @@ public abstract class FullCacheLookupTable implements LookupTable {
         while (true) {
             try (RecordReaderIterator<InternalRow> batch =
                     new RecordReaderIterator<>(reader.nextBatch(false))) {
+                // 每读出一个 batch 则执行一次 refresh，如果没有下一个则跳出
                 if (!batch.hasNext()) {
                     return;
                 }
@@ -283,9 +291,11 @@ public abstract class FullCacheLookupTable implements LookupTable {
 
     public void refresh(Iterator<InternalRow> input) throws IOException {
         Predicate predicate = projectedPredicate();
+        // 遍历 input（就是上层的 batch ）的每条数据，执行 refreshRow
         while (input.hasNext()) {
             InternalRow row = input.next();
             if (refreshAsync) {
+                // 异步执行的情况下，refreshRow 方法需要保持同步
                 synchronized (lock) {
                     refreshRow(row, predicate);
                 }

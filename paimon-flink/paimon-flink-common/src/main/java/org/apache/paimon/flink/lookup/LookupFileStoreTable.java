@@ -49,6 +49,7 @@ public class LookupFileStoreTable extends DelegatedFileStoreTable {
 
     public LookupFileStoreTable(FileStoreTable wrapped, List<String> joinKeys) {
         super(wrapped);
+        // 根据不同的配置和 JoinKey 与 PK 的关系来决定 LookupScanMode
         this.lookupScanMode = lookupStreamScanMode(wrapped, joinKeys);
     }
 
@@ -113,12 +114,20 @@ public class LookupFileStoreTable extends DelegatedFileStoreTable {
         Options options = Options.fromMap(table.options());
         if (options.get(LOOKUP_CACHE_MODE) == FlinkConnectorOptions.LookupCacheMode.AUTO
                 && new HashSet<>(table.primaryKeys()).equals(new HashSet<>(joinKeys))) {
+            // lookup.cache 是 AUTO 且 主键和关联键相同，则走 file-monitor 模式
             return LookupStreamScanMode.FILE_MONITOR;
         } else if (table.primaryKeys().size() > 0
                 && options.get(CHANGELOG_PRODUCER) == CoreOptions.ChangelogProducer.NONE
                 && TableScanUtils.supportCompactDiffStreamingReading(table)) {
+            // (表有主键)
+            // && (changelog-producer == NONE)
+            // && (changelog-producer == lookup || deletion-vectors.enabled == true || merge-engine == isFirstRow || force-lookup == true)
+            // && (merge-engine == partial-update || merge-engine == aggregation)
+            // && (partial-update.remove-record-on-delete == false)
+            // 满足所有条件才能走 compact-delta-monitor
             return LookupStreamScanMode.COMPACT_DELTA_MONITOR;
         } else {
+            // 其他情况都会走 changelog 模式
             return LookupStreamScanMode.CHANGELOG;
         }
     }

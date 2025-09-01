@@ -252,6 +252,7 @@ public abstract class BaseDataTableSource extends FlinkTableSource
             throw new RuntimeException(
                     "Limit push down should not happen in Lookup source, but it is " + limit);
         }
+        // projectFields 是依赖 flink sql 解析的结果得来的
         int[] projection =
                 projectFields == null
                         ? IntStream.range(0, table.rowType().getFieldCount()).toArray()

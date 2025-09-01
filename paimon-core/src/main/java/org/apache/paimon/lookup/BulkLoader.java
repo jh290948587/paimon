@@ -108,6 +108,7 @@ public class BulkLoader {
 
             if (files.size() > 0) {
                 IngestExternalFileOptions ingestOptions = new IngestExternalFileOptions();
+                // 这种方法是比较高效的加载数据，性能高，避免逐条写入
                 db.ingestExternalFile(columnFamily, files, ingestOptions);
                 ingestOptions.close();
             }

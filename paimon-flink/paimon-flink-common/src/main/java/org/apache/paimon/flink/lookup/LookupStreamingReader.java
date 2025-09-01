@@ -75,6 +75,8 @@ public class LookupStreamingReader {
                                 requireCachedBucketIds == null
                                         ? null
                                         : requireCachedBucketIds::contains);
+        // 真正读取数据的 Scan，根据不同的 FileStoreTable 生成对应的 StreamTableScan，这里生成的自然是 LookupDataTableScan
+        // 第一次 Scan 基本都是全量 Scan 一个 Snapshot，后面的 Scan 则要么读 Delta 中只是 Add File 的数据，要么读 Delta 中所有数据（包括 Delete 和 Add），要么读 Changelog，具体就要看表的配置了及属性了
         scan = readBuilder.newStreamScan();
 
         if (predicate != null) {
@@ -101,6 +103,7 @@ public class LookupStreamingReader {
         }
     }
 
+    // bootstrap 时是初始化，只调用一次。真正 lookup 刷新时，需要 while(true) 持续调用直到进度追上最新的 Snapshot
     public RecordReader<InternalRow> nextBatch(boolean useParallelism) throws Exception {
         List<Split> splits = scan.plan().splits();
         CoreOptions options = CoreOptions.fromMap(table.options());
@@ -111,6 +114,7 @@ public class LookupStreamingReader {
 
         RecordReader<InternalRow> reader;
         if (useParallelism) {
+            // 并发读取器，多线程分别去读不同的 split
             reader =
                     SplitsParallelReadUtil.parallelExecute(
                             readType,
@@ -119,6 +123,7 @@ public class LookupStreamingReader {
                             options.pageSize(),
                             new Options(table.options()).get(LOOKUP_BOOTSTRAP_PARALLELISM));
         } else {
+            // 非并发读取器，全部 split 串起来读
             List<ReaderSupplier<InternalRow>> readers = new ArrayList<>();
             for (Split split : splits) {
                 readers.add(() -> readerSupplier.apply(split));

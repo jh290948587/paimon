@@ -46,15 +46,18 @@ public class RocksDBListState<K, V> extends RocksDBState<K, V, List<V>> {
         byte[] keyBytes = serializeKey(key);
         byte[] valueBytes = serializeValue(value);
         try {
+            // 插入到 rocksdb 中
             db.merge(columnFamily, writeOptions, keyBytes, valueBytes);
         } catch (RocksDBException e) {
             throw new IOException(e);
         }
+        // TODO WHY? 由于有新数据了，这个 key 对应的记录就要从 cache 中删掉（随后验证下这里是不是删除数据）
         cache.invalidate(wrap(keyBytes));
     }
 
     public List<V> get(K key) throws IOException {
         byte[] keyBytes = serializeKey(key);
+        // 先看下 Cache 里有没有，没有的话就从 Rocksdb 中去 Get 并且将结果缓存起来
         return cache.get(
                 wrap(keyBytes),
                 k -> {

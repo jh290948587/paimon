@@ -167,14 +167,18 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
         int[] projection = projectFields.stream().mapToInt(fieldNames::indexOf).toArray();
         FileStoreTable storeTable = (FileStoreTable) table;
 
+        // 1、根据不同配置初始化 LookupTable
+        // lookup.cache 为 AUTO 且表的主键就是 join key 时，走按需加载的 LookupTable
         if (options.get(LOOKUP_CACHE_MODE) == LookupCacheMode.AUTO
                 && new HashSet<>(table.primaryKeys()).equals(new HashSet<>(joinKeys))) {
             if (isRemoteServiceAvailable(storeTable)) {
+                // 用 flink 服务来做 lookup join
                 this.lookupTable =
                         PrimaryKeyPartialLookupTable.createRemoteTable(
                                 storeTable, projection, joinKeys);
             } else {
                 try {
+                    // 把 datafile 写到本地，然后再查询
                     this.lookupTable =
                             PrimaryKeyPartialLookupTable.createLocalTable(
                                     storeTable,
@@ -187,7 +191,9 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
             }
         }
 
+        // 都不满足的情况下，走全量加载的 LookupTable
         if (lookupTable == null) {
+            // Full Cache 的方式，需要初始化全量数据
             FullCacheLookupTable.Context context =
                     new FullCacheLookupTable.Context(
                             storeTable,
@@ -200,9 +206,11 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
             this.lookupTable = FullCacheLookupTable.create(context, options.get(LOOKUP_CACHE_ROWS));
         }
 
+        // 2、获取最新的分区加到 filter 中
         if (partitionLoader != null) {
             partitionLoader.open();
             partitionLoader.checkRefresh();
+            // 分区表在读 snapshot 来更新 rocksdb 时，会指定最新的 partition 作为过滤条件
             BinaryRow partition = partitionLoader.partition();
             if (partition != null) {
                 lookupTable.specificPartitionFilter(createSpecificPartFilter(partition));
@@ -212,6 +220,8 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
         if (cacheRowFilter != null) {
             lookupTable.specifyCacheRowFilter(cacheRowFilter);
         }
+
+        // 对 LookupTable 进行 Open 操作
         lookupTable.open();
     }
 
@@ -233,6 +243,7 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
 
     public Collection<RowData> lookup(RowData keyRow) {
         try {
+            // 在 lookup 之前，先要尝试刷新，拿到最新的数据
             tryRefresh();
 
             InternalRow key = new FlinkRowWrapper(keyRow);
@@ -243,6 +254,7 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
                 key = JoinedRow.join(key, partitionLoader.partition());
             }
 
+            // 根据 key 获取结果行
             List<InternalRow> results = lookupTable.get(key);
             List<RowData> rows = new ArrayList<>(results.size());
             for (InternalRow matchedRow : results) {
@@ -284,12 +296,14 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
     @VisibleForTesting
     void tryRefresh() throws Exception {
         // 1. check if this time is in black list
+        // 判断当前时间是否在 Blacklist 里配置的时间，如果在的话，则不刷新
         if (refreshBlacklist != null && !refreshBlacklist.canRefresh()) {
             return;
         }
 
         // 2. refresh dynamic partition
         if (partitionLoader != null) {
+            // 检查当前最大分区，和之前分区是否相同，如果不相同，说明最大分区已经变了
             boolean partitionChanged = partitionLoader.checkRefresh();
             BinaryRow partition = partitionLoader.partition();
             if (partition == null) {
@@ -297,8 +311,10 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
                 return;
             }
 
+            // 分区变了，所以要重新清理rocksdb
             if (partitionChanged) {
                 // reopen with latest partition
+                // 设置为最新的分区，并重新进行 reopen
                 lookupTable.specificPartitionFilter(createSpecificPartFilter(partition));
                 lookupTable.close();
                 lookupTable.open();
@@ -308,7 +324,9 @@ public class FileStoreLookupFunction implements Serializable, Closeable {
         }
 
         // 3. refresh lookup table
+        // 如果已经到了下次刷新时间，则开始 refresh
         if (shouldRefreshLookupTable()) {
+            // 不同 LookupTable 的实现有不同的刷新策略
             lookupTable.refresh();
             nextRefreshTime = System.currentTimeMillis() + refreshInterval.toMillis();
         }

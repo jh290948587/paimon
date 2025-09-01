@@ -103,6 +103,7 @@ public class PrimaryKeyLookupTable extends FullCacheLookupTable {
             }
         }
 
+        // 有两种特殊情况需要把 Rocksdb 中对应 Key 的记录删掉的，第一种是从 Snapshot 中读出来的 Row 的 RowKind 不是 Add 时，第二种是从 Snapshot 中读出来的 Row 的不符合谓词条件
         if (row.getRowKind() == RowKind.INSERT || row.getRowKind() == RowKind.UPDATE_AFTER) {
             if (predicate == null || predicate.test(row)) {
                 tableState.put(primaryKeyRow, row);
@@ -135,6 +136,7 @@ public class PrimaryKeyLookupTable extends FullCacheLookupTable {
             @Override
             public void write(byte[] key, byte[] value)
                     throws BulkLoader.WriteException, IOException {
+                // 有主键，直接写 key 和 value
                 bulkLoader.write(key, value);
                 bulkLoadWritePlus(key, value);
             }

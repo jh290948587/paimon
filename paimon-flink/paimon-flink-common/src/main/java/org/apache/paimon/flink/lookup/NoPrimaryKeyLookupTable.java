@@ -52,6 +52,7 @@ public class NoPrimaryKeyLookupTable extends FullCacheLookupTable {
 
     @Override
     public void open() throws Exception {
+        // 创建且封装了 Rocksdb、Cache 以及各种序列化和反序列化工具类
         openStateFactory();
         this.state =
                 stateFactory.listState(
@@ -80,6 +81,7 @@ public class NoPrimaryKeyLookupTable extends FullCacheLookupTable {
     @Override
     protected void refreshRow(InternalRow row, Predicate predicate) throws IOException {
         joinKeyRow.replaceRow(row);
+        // 非主键表，只接受 +I 和 +U，且满足过滤条件的记录
         if (row.getRowKind() == RowKind.INSERT || row.getRowKind() == RowKind.UPDATE_AFTER) {
             if (predicate == null || predicate.test(row)) {
                 state.add(joinKeyRow, row);
@@ -94,6 +96,8 @@ public class NoPrimaryKeyLookupTable extends FullCacheLookupTable {
 
     @Override
     public byte[] toKeyBytes(InternalRow row) throws IOException {
+        // NoPrimaryKeyLookupTable 是以 join key Rocksdb 的 key，相同 key 的多条记录放在一个 List 中一起序列化成 Rocksdb 的 Value，
+        // 写入 Rocksdb 的 SST 之前会利用外排对所有数据进行排序，不然 Rocksdb 会报错
         joinKeyRow.replaceRow(row);
         return state.serializeKey(joinKeyRow);
     }
