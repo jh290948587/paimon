@@ -145,15 +145,17 @@ public abstract class FlinkTableSource
         Configuration envConfig = (Configuration) env.getConfiguration();
         if (envConfig.containsKey(FLINK_INFER_SCAN_PARALLELISM)) {
             options.set(
-                    FlinkConnectorOptions.INFER_SCAN_PARALLELISM,
+                    FlinkConnectorOptions.INFER_SCAN_PARALLELISM, //用户是否开启推断并发，默认开启
                     Boolean.parseBoolean(envConfig.toMap().get(FLINK_INFER_SCAN_PARALLELISM)));
         }
         Integer parallelism = options.get(FlinkConnectorOptions.SCAN_PARALLELISM);
         if (parallelism == null && options.get(FlinkConnectorOptions.INFER_SCAN_PARALLELISM)) {
             if (isStreaming()) {
+                // 如果开启推断并发，流作业并发数就是 bucket 数
                 parallelism = Math.max(1, options.get(CoreOptions.BUCKET));
             } else {
                 scanSplitsForInference();
+                // 如果开启推断并发，批作业并发数就是 split 数
                 parallelism = splitStatistics.splitNumber();
                 if (null != limit && limit > 0) {
                     int limitCount =

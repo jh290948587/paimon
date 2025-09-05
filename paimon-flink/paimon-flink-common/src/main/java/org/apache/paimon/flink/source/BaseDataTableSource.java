@@ -160,21 +160,25 @@ public abstract class BaseDataTableSource extends FlinkTableSource
 
     @Override
     public ScanRuntimeProvider getScanRuntimeProvider(ScanContext scanContext) {
+        // 如果 countPushed 不为空，说明有 COUNT() 聚合下推优化，只有批任务可能会有
         if (countPushed != null) {
             return createCountStarScan();
         }
 
+        // 是否读 logStore，目前只支持 kafka
         LogSourceProvider logSourceProvider = null;
         if (logStoreTableFactory != null) {
             logSourceProvider =
                     logStoreTableFactory.createSourceProvider(context, scanContext, projectFields);
         }
 
+        // paimon Source 的 Watermark 生成策略和发射周期
         WatermarkStrategy<RowData> watermarkStrategy = this.watermarkStrategy;
         Options options = Options.fromMap(table.options());
         if (watermarkStrategy != null) {
             WatermarkEmitStrategy emitStrategy = options.get(SCAN_WATERMARK_EMIT_STRATEGY);
             if (emitStrategy == WatermarkEmitStrategy.ON_EVENT) {
+                // OnEventWatermarkStrategy 采用装饰者模式，对原始 watermarkStrategy 进行增强，根据事件驱动来发射水印
                 watermarkStrategy = new OnEventWatermarkStrategy(watermarkStrategy);
             }
             Duration idleTimeout = options.get(SCAN_WATERMARK_IDLE_TIMEOUT);
@@ -197,9 +201,9 @@ public abstract class BaseDataTableSource extends FlinkTableSource
                         .sourceName(tableIdentifier.asSummaryString())
                         .sourceBounded(!streaming)
                         .logSourceProvider(logSourceProvider)
-                        .projection(projectFields)
-                        .predicate(predicate)
-                        .limit(limit)
+                        .projection(projectFields) // 要读的字段
+                        .predicate(predicate) // 过滤条件
+                        .limit(limit) // limit数量
                         .watermarkStrategy(watermarkStrategy)
                         .dynamicPartitionFilteringFields(dynamicPartitionFilteringFields());
 
@@ -209,7 +213,7 @@ public abstract class BaseDataTableSource extends FlinkTableSource
                         sourceBuilder
                                 .sourceParallelism(inferSourceParallelism(env))
                                 .env(env)
-                                .build());
+                                .build()); // 真正开始 create source 的地方
     }
 
     private ScanRuntimeProvider createCountStarScan() {
@@ -296,22 +300,27 @@ public abstract class BaseDataTableSource extends FlinkTableSource
             List<AggregateExpression> aggregateExpressions,
             DataType producedDataType) {
         if (isStreaming()) {
+            // 流式查询不支持聚合下推
             return false;
         }
 
         if (!(table instanceof DataTable)) {
+            // 只支持 DataTable 类型
             return false;
         }
 
         if (groupingSets.size() != 1) {
+            // 只支持单个分组集合
             return false;
         }
 
         if (groupingSets.get(0).length != 0) {
+            // 不支持 GROUP BY，只支持全局聚合
             return false;
         }
 
         if (aggregateExpressions.size() != 1) {
+            // 只支持单个聚合表达式
             return false;
         }
 
@@ -322,6 +331,7 @@ public abstract class BaseDataTableSource extends FlinkTableSource
                 .getName()
                 .equals(
                         "org.apache.flink.table.planner.functions.aggfunctions.Count1AggFunction")) {
+            // 只支持 count(*) 函数，不支持其他聚合函数如 SUM、AVG、MAX 等。
             return false;
         }
 
@@ -334,9 +344,11 @@ public abstract class BaseDataTableSource extends FlinkTableSource
             }
             DataSplit split = (DataSplit) s;
             if (!split.mergedRowCountAvailable()) {
+                // 如果分片没有行数统计信息，无法优化
                 return false;
             }
 
+            // 累加所有分片的行数
             countPushed += split.mergedRowCount();
         }
 

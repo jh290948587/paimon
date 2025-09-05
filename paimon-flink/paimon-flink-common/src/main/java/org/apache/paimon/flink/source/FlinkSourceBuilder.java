@@ -278,10 +278,13 @@ public class FlinkSourceBuilder {
     }
 
     /** Build source {@link DataStream} with {@link RowData}. */
+    // 根据各种配置，创建各种流读、批读的 source
     public DataStream<RowData> build() {
         if (env == null) {
             throw new IllegalArgumentException("StreamExecutionEnvironment should not be null.");
         }
+
+        // 如果启用了 consumer-id，必须配置过期时间
         if (conf.contains(CoreOptions.CONSUMER_ID)
                 && !conf.contains(CoreOptions.CONSUMER_EXPIRATION_TIME)) {
             throw new IllegalArgumentException(
@@ -290,6 +293,7 @@ public class FlinkSourceBuilder {
                             + " too many snapshots that could pose a risk to the file system.");
         }
 
+        // 批处理模式时，构建静态文件读取 source
         if (sourceBounded) {
             return buildStaticFileSource();
         }
@@ -299,11 +303,13 @@ public class FlinkSourceBuilder {
         StartupMode startupMode = CoreOptions.startupMode(conf);
         StreamingReadMode streamingReadMode = CoreOptions.streamReadType(conf);
 
-        if (logSourceProvider != null && streamingReadMode != FILE) {
+        if (logSourceProvider != null && streamingReadMode != FILE) { // 日志读取 source
             logSourceProvider.preCreateSource();
             if (startupMode != StartupMode.LATEST_FULL) {
+                // 非 LATEST_FULL 模式，直接使用日志读取 source
                 return toDataStream(logSourceProvider.createSource(null));
             } else {
+                // LATEST_FULL 模式，混合 source，先读文件，再读日志
                 return toDataStream(
                         HybridSource.<RowData, StaticFileStoreSplitEnumerator>builder(
                                         LogHybridSourceFactory.buildHybridFirstSource(
@@ -316,15 +322,15 @@ public class FlinkSourceBuilder {
                                         Boundedness.CONTINUOUS_UNBOUNDED)
                                 .build());
             }
-        } else {
+        } else { // 文件存储读取 source
             if (conf.get(FlinkConnectorOptions.SOURCE_CHECKPOINT_ALIGN_ENABLED)) {
-                return buildAlignedContinuousFileSource();
+                return buildAlignedContinuousFileSource(); // cp 和 snapshot 对齐的流读，也就是 pip-5 的子任务
             } else if (conf.contains(CoreOptions.CONSUMER_ID)
                     && conf.get(CoreOptions.CONSUMER_CONSISTENCY_MODE)
                             == CoreOptions.ConsumerMode.EXACTLY_ONCE) {
-                return buildContinuousStreamOperator();
+                return buildContinuousStreamOperator(); // exactly-once 的流读，支持 consumer-id
             } else {
-                return buildContinuousFileSource();
+                return buildContinuousFileSource(); // at-least-once 的流读，支持 consumer-id
             }
         }
     }
@@ -335,6 +341,7 @@ public class FlinkSourceBuilder {
             throw new IllegalArgumentException(
                     "Cannot limit streaming source, please use batch execution mode.");
         }
+        // 构建数据源 datastream，链路：数据源 → MonitorSource → Split → ReadOperator → RowData → 下游处理
         dataStream =
                 MonitorSource.buildSource(
                         env,

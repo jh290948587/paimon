@@ -30,6 +30,7 @@ import java.util.function.Function;
 public class PaimonDataStreamScanProvider implements DataStreamScanProvider {
 
     private final boolean isBounded;
+    // producer 是一个函数，输入是 flink env，输出是 flink datastream
     private final Function<StreamExecutionEnvironment, DataStream<RowData>> producer;
 
     public PaimonDataStreamScanProvider(

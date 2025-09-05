@@ -216,17 +216,17 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
         SingleOutputStreamOperator<Split> singleOutputStreamOperator =
                 env.fromSource(
                                 new MonitorSource(
-                                        readBuilder, monitorInterval, emitSnapshotWatermark),
-                                WatermarkStrategy.noWatermarks(),
-                                name + "-Monitor",
-                                new JavaTypeInfo<>(Split.class))
+                                        readBuilder, monitorInterval, emitSnapshotWatermark), // 实例化 MonitorSource，传入 readBuilder，用来构建读取器
+                                WatermarkStrategy.noWatermarks(), // 无水印策略
+                                name + "-Monitor", // 数据源名称
+                                new JavaTypeInfo<>(Split.class)) // 自定义 Split 类型，用来传输 Split 信息
                         .forceNonParallel();
 
         DataStream<Split> sourceDataStream =
                 bucketMode == BUCKET_UNAWARE
                         ? shuffleUnwareBucket(singleOutputStreamOperator)
                         : shuffleNonUnwareBucket(
-                                singleOutputStreamOperator, shuffleBucketWithPartition);
+                                singleOutputStreamOperator, shuffleBucketWithPartition); // 非 BUCKET_UNAWARE 的 shuffle 策略
 
         return sourceDataStream.transform(
                 name + "-Reader", typeInfo, new ReadOperator(readBuilder, nestedProjectedRowData));
@@ -243,11 +243,14 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
         return singleOutputStreamOperator.partitionCustom(
                 (key, numPartitions) -> {
                     if (shuffleBucketWithPartition) {
+                        // 同时考虑分区和Bucket
                         return ChannelComputer.select(key.f0, key.f1, numPartitions);
                     }
+                    // 只考虑Bucket
                     return ChannelComputer.select(key.f1, numPartitions);
                 },
                 split -> {
+                    // 从 DataSplit 中提取分区和Bucket信息，返回 Tuple2<partition, bucket> 作为分区键
                     DataSplit dataSplit = (DataSplit) split;
                     return Tuple2.of(dataSplit.partition(), dataSplit.bucket());
                 });

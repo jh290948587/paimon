@@ -97,11 +97,13 @@ public abstract class AbstractFlinkTableFactory
                 context.getConfiguration().get(ExecutionOptions.RUNTIME_MODE)
                         == RuntimeExecutionMode.STREAMING;
         if (origin instanceof SystemCatalogTable) {
+            // 系统表读取 Source
             return new SystemTableSource(
                     ((SystemCatalogTable) origin).table(),
                     isStreamingMode,
                     context.getObjectIdentifier());
         } else {
+            // 正常数据读取 Source
             return new DataTableSource(
                     context.getObjectIdentifier(),
                     buildPaimonTable(context),

@@ -35,11 +35,13 @@ public interface ChannelComputer<T> extends Serializable {
     int channel(T record);
 
     static int select(BinaryRow partition, int bucket, int numChannels) {
+        // 基于 partition 和 bucket 的组合计算分区索引
         int startChannel = Math.abs(partition.hashCode()) % numChannels;
         return (startChannel + bucket) % numChannels;
     }
 
     static int select(int bucket, int numChannels) {
+        // 只基于 bucket 的计算分区索引
         return bucket % numChannels;
     }
 
