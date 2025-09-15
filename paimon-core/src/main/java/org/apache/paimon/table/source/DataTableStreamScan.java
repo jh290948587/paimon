@@ -319,6 +319,7 @@ public class DataTableStreamScan extends AbstractDataTableScan implements Stream
 
         String consumerId = options.consumerId();
         if (consumerId != null) {
+            // 将最大的 snapshotId 写进 consumer_id 文件中
             snapshotReader.consumerManager().resetConsumer(consumerId, new Consumer(nextSnapshot));
         }
     }

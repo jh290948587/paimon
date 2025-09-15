@@ -125,9 +125,12 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
 
         @Override
         public void notifyCheckpointComplete(long checkpointId) {
+            // 获取所有已完成的 checkpoint Id <= checkpointId 的 map
             NavigableMap<Long, Long> nextSnapshots =
                     nextSnapshotPerCheckpoint.headMap(checkpointId, true);
+            // 找出所有 snapshot 中最大的 snapshotId，表示这个 snapshotId 之前的 Snapshot 都被消费完了，在写入作业的 SnapshotExpire 相关逻辑中可以 Expire 掉这个 SnapshotId 之前的 Snapshot 了
             OptionalLong max = nextSnapshots.values().stream().mapToLong(Long::longValue).max();
+            // 更新 consumer 文件中的 nextSnapshot
             max.ifPresent(scan::notifyCheckpointComplete);
             nextSnapshots.clear();
         }
@@ -135,9 +138,12 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
         @Override
         public List<SimpleSourceSplit> snapshotState(long checkpointId) {
             this.checkpointState.clear();
+            // 获取 nextSnapshotId
             Long nextSnapshot = this.scan.checkpoint();
             if (nextSnapshot != null) {
+                // 将 nextSnapshotId 加入到 state 中
                 this.checkpointState.add(nextSnapshot);
+                // 将 cpId 和 nextSnapshotId 加入到 treeMap 中，然后更新 state
                 this.nextSnapshotPerCheckpoint.put(checkpointId, nextSnapshot);
             }
 
@@ -181,10 +187,13 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
         public InputStatus pollNext(ReaderOutput<Split> readerOutput) throws Exception {
             boolean isEmpty;
             try {
+                // 对下一个 snapshot 求 plan，进而得到 splits
                 List<Split> splits = scan.plan().splits();
                 isEmpty = splits.isEmpty();
+                // 把 splits 发送给下游的 ReadOperator
                 splits.forEach(readerOutput::collect);
 
+                // 如果 emitSnapshotWatermark 为 true，则将当前消费的 snapshot 的 watermark 发送到下游所有并发
                 if (emitSnapshotWatermark) {
                     Long watermark = scan.watermark();
                     if (watermark != null) {
@@ -197,6 +206,7 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
             }
 
             if (isEmpty) {
+                // 当前消费速度比上游产出 snapshot 速度快，则 sleep 10s
                 Thread.sleep(monitorInterval);
             }
             return InputStatus.MORE_AVAILABLE;
@@ -229,7 +239,7 @@ public class MonitorSource extends AbstractNonCoordinatedSource<Split> {
                                 singleOutputStreamOperator, shuffleBucketWithPartition); // 非 BUCKET_UNAWARE 的 shuffle 策略
 
         return sourceDataStream.transform(
-                name + "-Reader", typeInfo, new ReadOperator(readBuilder, nestedProjectedRowData));
+                name + "-Reader", typeInfo, new ReadOperator(readBuilder, nestedProjectedRowData)); // ReadOperator 读取 split 文件，然后转为 Flink RowData 发送给下游 Operator
     }
 
     private static DataStream<Split> shuffleUnwareBucket(

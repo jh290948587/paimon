@@ -124,6 +124,7 @@ public class ContinuousFileSplitEnumerator
 
     @Override
     public void start() {
+        // 默认每 10s 去获取要 scan 的 snapshot 的 plan，然后对 plan 中的 split 进行分配到各个 task 中
         context.callAsync(
                 this::scanNextSnapshot, this::processDiscoveredSplits, 0, discoveryInterval);
     }
@@ -200,8 +201,8 @@ public class ContinuousFileSplitEnumerator
         if (splitAssigner.numberOfRemainingSplits() >= splitMaxNum) {
             return Optional.empty();
         }
-        TableScan.Plan plan = scan.plan();
-        Long nextSnapshotId = scan.checkpoint();
+        TableScan.Plan plan = scan.plan(); // 对 snapshot 求取 plan
+        Long nextSnapshotId = scan.checkpoint(); //获取目前正在 scan 的 snapshotId
         return Optional.of(new PlanWithNextSnapshotId(plan, nextSnapshotId));
     }
 
@@ -214,6 +215,7 @@ public class ContinuousFileSplitEnumerator
                 // finished
                 LOG.debug("Catching EndOfStreamException, the stream is finished.");
                 finished = true;
+                // 有限流，作业结束了，最后也要分配一次 split
                 assignSplits();
             } else {
                 LOG.error("Failed to enumerate files", error);
@@ -238,6 +240,7 @@ public class ContinuousFileSplitEnumerator
             return;
         }
 
+        // 对 split 所属的 bucket 与并发数求 %，算出把这个 split 交给哪个并发消费，并将结果记录到 splitAssigner 中
         addSplits(splitGenerator.createSplits(plan));
         assignSplits();
     }
@@ -249,7 +252,7 @@ public class ContinuousFileSplitEnumerator
     protected synchronized void assignSplits() {
         // create assignment
         Map<Integer, List<FileStoreSourceSplit>> assignment = new HashMap<>();
-        Iterator<Integer> readersAwait = readersAwaitingSplit.iterator();
+        Iterator<Integer> readersAwait = readersAwaitingSplit.iterator(); // 空闲的 subtask
         Set<Integer> subtaskIds = context.registeredReaders().keySet();
         while (readersAwait.hasNext()) {
             Integer task = readersAwait.next();
@@ -257,9 +260,9 @@ public class ContinuousFileSplitEnumerator
                 readersAwait.remove();
                 continue;
             }
-            List<FileStoreSourceSplit> splits = splitAssigner.getNext(task, null);
+            List<FileStoreSourceSplit> splits = splitAssigner.getNext(task, null); // splitAssigner 是刚刚在 addSplits 方法中添加了 split
             if (!splits.isEmpty()) {
-                assignment.put(task, splits);
+                assignment.put(task, splits); // 给 subtask 分配 split
                 consumerProgressCalculator.updateAssignInformation(task, splits.get(0));
             }
         }
@@ -276,7 +279,7 @@ public class ContinuousFileSplitEnumerator
             }
         }
         assignment.keySet().forEach(readersAwaitingSplit::remove);
-        context.assignSplits(new SplitsAssignment<>(assignment));
+        context.assignSplits(new SplitsAssignment<>(assignment)); // split 分配给 task 的结果告诉框架
     }
 
     protected int assignSuggestedTask(FileStoreSourceSplit split) {

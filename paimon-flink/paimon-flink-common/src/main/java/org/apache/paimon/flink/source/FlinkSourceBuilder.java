@@ -325,7 +325,7 @@ public class FlinkSourceBuilder {
         } else { // 文件存储读取 source
             if (conf.get(FlinkConnectorOptions.SOURCE_CHECKPOINT_ALIGN_ENABLED)) {
                 return buildAlignedContinuousFileSource(); // cp 和 snapshot 对齐的流读，也就是 pip-5 的子任务
-            } else if (conf.contains(CoreOptions.CONSUMER_ID)
+            } else if (conf.contains(CoreOptions.CONSUMER_ID) // 需要表中配置了 consumer-id
                     && conf.get(CoreOptions.CONSUMER_CONSISTENCY_MODE)
                             == CoreOptions.ConsumerMode.EXACTLY_ONCE) {
                 return buildContinuousStreamOperator(); // exactly-once 的流读，支持 consumer-id
